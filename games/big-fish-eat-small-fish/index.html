@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐟 大鱼吃小鱼</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+  }
+  .game-wrapper {
+    position: relative;
+    border-radius: 16px;
+    box-shadow: 0 0 60px rgba(0,150,255,0.3), 0 0 120px rgba(0,100,200,0.15);
+    border: 2px solid rgba(100,200,255,0.2);
+  }
+  canvas {
+    display: block;
+    border-radius: 14px;
+    cursor: none;
+    background: #0a1628;
+  }
+  #ui-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    border-radius: 14px;
+  }
+  #score {
+    position: absolute;
+    top: 20px; left: 24px;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+    letter-spacing: 0.5px;
+  }
+  #score span { color: #ffd700; }
+  #size-info {
+    position: absolute;
+    top: 20px; right: 24px;
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  }
+  #game-over {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #fff;
+    pointer-events: auto;
+    display: none;
+  }
+  #game-over h1 {
+    font-size: 48px;
+    margin-bottom: 8px;
+    text-shadow: 0 4px 20px rgba(255,0,0,0.5);
+  }
+  #game-over p {
+    font-size: 20px;
+    opacity: 0.8;
+    margin-bottom: 24px;
+  }
+  #game-over button {
+    pointer-events: auto;
+    background: linear-gradient(135deg, #00b4ff, #0066ff);
+    border: none;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 14px 40px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0,100,255,0.4);
+    letter-spacing: 0.5px;
+  }
+  #game-over button:hover {
+    transform: scale(1.06);
+    box-shadow: 0 6px 30px rgba(0,100,255,0.6);
+  }
+  #start-screen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    pointer-events: auto;
+    background: rgba(10,22,40,0.6);
+    backdrop-filter: blur(4px);
+    border-radius: 14px;
+  }
+  #start-screen h1 {
+    font-size: 52px;
+    margin-bottom: 8px;
+    text-shadow: 0 4px 20px rgba(0,150,255,0.5);
+  }
+  #start-screen .sub {
+    font-size: 18px;
+    opacity: 0.7;
+    margin-bottom: 32px;
+  }
+  #start-screen button {
+    pointer-events: auto;
+    background: linear-gradient(135deg, #00b4ff, #0066ff);
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 600;
+    padding: 16px 48px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0,100,255,0.4);
+    letter-spacing: 0.5px;
+  }
+  #start-screen button:hover {
+    transform: scale(1.06);
+    box-shadow: 0 6px 30px rgba(0,100,255,0.6);
+  }
+  .controls-hint {
+    margin-top: 24px;
+    font-size: 13px;
+    opacity: 0.4;
+  }
+  @media (max-width: 600px) {
+    canvas { width: 100vw; height: 100vw; }
+    #start-screen h1 { font-size: 36px; }
+    #score { font-size: 18px; top: 14px; left: 16px; }
+    #size-info { font-size: 12px; top: 14px; right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="game-wrapper">
+  <canvas id="gameCanvas" width="900" height="600"></canvas>
+  <div id="ui-overlay">
+    <div id="score">🐟 得分: <span id="scoreValue">0</span></div>
+    <div id="size-info">体型: <span id="sizeLevel">1</span></div>
+
+    <div id="game-over">
+      <h1>💀 被吃掉了!</h1>
+      <p>最终得分: <strong id="finalScore">0</strong></p>
+      <button onclick="restartGame()">🔄 再来一局</button>
+    </div>
+
+    <div id="start-screen">
+      <h1>🐟 大鱼吃小鱼</h1>
+      <div class="sub">在深海中弱肉强食，不断成长！</div>
+      <button onclick="startGame()">🎮 开始游戏</button>
+      <div class="controls-hint">🖱️ 鼠标控制方向 · 吃掉比你小的鱼 · 躲避大鱼</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+// ============ 游戏状态 ============
+let gameRunning = false;
+let score = 0;
+let player = null;
+let fishes = [];
+let bubbles = [];
+let particles = [];
+let eatenEffects = [];
+let mouseX = W/2, mouseY = H/2;
+let frameCount = 0;
+let gameOver = false;
+
+// ============ 工具函数 ============
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max+1)); }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+// ============ 颜色方案 ============
+const FISH_COLORS = [
+  { body: '#ff6b6b', fin: '#ff8787', eye: '#fff' },
+  { body: '#ffd43b', fin: '#ffe066', eye: '#fff' },
+  { body: '#69db7c', fin: '#8ce99a', eye: '#fff' },
+  { body: '#74c0fc', fin: '#a5d8ff', eye: '#fff' },
+  { body: '#da77f2', fin: '#e599f7', eye: '#fff' },
+  { body: '#ff922b', fin: '#ffa94d', eye: '#fff' },
+  { body: '#20c997', fin: '#38d9a9', eye: '#fff' },
+  { body: '#f06595', fin: '#f783ac', eye: '#fff' },
+  { body: '#845ef7', fin: '#9775fa', eye: '#fff' },
+  { body: '#339af0', fin: '#5c9eff', eye: '#fff' },
+];
+
+// ============ 玩家 ============
+class Player {
+  constructor() {
+    this.x = W/2;
+    this.y = H/2;
+    this.size = 20; // 基础大小
+    this.scale = 1.0; // 成长倍数
+    this.angle = 0;
+    this.targetAngle = 0;
+    this.speed = 4;
+    this.color = { body: '#00d4ff', fin: '#4ddbff', eye: '#fff' };
+    this.alive = true;
+  }
+
+  get radius() { return this.size * this.scale; }
+
+  update() {
+    const dx = mouseX - this.x;
+    const dy = mouseY - this.y;
+    const d = Math.hypot(dx, dy);
+
+    if (d > 2) {
+      this.targetAngle = Math.atan2(dy, dx);
+      this.x += (dx / d) * this.speed;
+      this.y += (dy / d) * this.speed;
+    }
+
+    // 平滑旋转
+    let diff = this.targetAngle - this.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    this.angle += diff * 0.1;
+
+    // 边界反弹
+    const r = this.radius;
+    this.x = clamp(this.x, r, W - r);
+    this.y = clamp(this.y, r, H - r);
+  }
+
+  draw() {
+    if (!this.alive) return;
+    drawFish(ctx, this.x, this.y, this.radius, this.angle, this.color, true);
+  }
+
+  grow(amount) {
+    this.scale += amount;
+    // 减慢速度随着体型增大
+    this.speed = Math.max(1.8, 4 - this.scale * 0.3);
+  }
+}
+
+// ============ AI 鱼 ============
+class Fish {
+  constructor(forceSize) {
+    this.x = rand(50, W-50);
+    this.y = rand(50, H-50);
+    // 鱼的体型等级: 0.5~3.0
+    const baseSizes = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.3, 2.6, 3.0];
+    this.sizeMult = forceSize || baseSizes[randInt(0, baseSizes.length-1)];
+    this.baseSize = 18;
+    this.angle = rand(0, Math.PI * 2);
+    this.speed = rand(0.8, 2.0) * (1.3 - this.sizeMult * 0.12);
+    this.speed = Math.max(0.5, this.speed);
+    this.color = FISH_COLORS[randInt(0, FISH_COLORS.length-1)];
+    this.wobblePhase = rand(0, Math.PI * 2);
+    this.wobbleSpeed = rand(0.02, 0.05);
+    this.turnTimer = rand(60, 180);
+    this.turnCooldown = 0;
+    this.state = 'wander'; // wander, flee, chase
+    this.stateTimer = 0;
+    this.targetX = rand(50, W-50);
+    this.targetY = rand(50, H-50);
+  }
+
+  get radius() { return this.baseSize * this.sizeMult; }
+  get weight() { return this.sizeMult; }
+
+  update( player) {
+    if (!gameRunning) return;
+    this.wobblePhase += this.wobbleSpeed;
+
+    const d = player.alive ? dist(this, player) : Infinity;
+    const playerR = player.alive ? player.radius : 0;
+
+    // 判定行为
+    if (player.alive) {
+      if (this.sizeMult < player.scale * 0.85) {
+        // 我比玩家小 → 逃跑
+        this.state = 'flee';
+      } else if (this.sizeMult > player.scale * 1.15) {
+        // 我比玩家大 → 追击
+        this.state = 'chase';
+      } else {
+        this.state = 'wander';
+      }
+    } else {
+      this.state = 'wander';
+    }
+
+    if (this.state === 'flee' && d < 250) {
+      const angleAway = Math.atan2(this.y - player.y, this.x - player.x);
+      this.targetX = this.x + Math.cos(angleAway) * 300;
+      this.targetY = this.y + Math.sin(angleAway) * 300;
+    } else if (this.state === 'chase' && d < 400) {
+      this.targetX = player.x;
+      this.targetY = player.y;
+    } else {
+      this.turnCooldown--;
+      if (this.turnCooldown <= 0 || dist(this, {x:this.targetX, y:this.targetY}) < 30) {
+        this.targetX = rand(40, W-40);
+        this.targetY = rand(40, H-40);
+        this.turnCooldown = randInt(60, 200);
+      }
+    }
+
+    // 向目标移动
+    const dx = this.targetX - this.x;
+    const dy = this.targetY - this.y;
+    const td = Math.hypot(dx, dy);
+
+    if (td > 1) {
+      const moveSpeed = this.state === 'chase' ? this.speed * 1.3 : this.speed;
+      this.x += (dx / td) * moveSpeed;
+      this.y += (dy / td) * moveSpeed;
+      this.targetAngle = Math.atan2(dy, dx);
+    }
+
+    // 平滑转向
+    let diff = this.targetAngle - this.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    this.angle += diff * 0.05;
+
+    // 边界反弹
+    const margin = 30;
+    if (this.x < margin) { this.targetX = W - 50; this.x = margin; }
+    if (this.x > W - margin) { this.targetX = 50; this.x = W - margin; }
+    if (this.y < margin) { this.targetY = H - 50; this.y = margin; }
+    if (this.y > H - margin) { this.targetY = 50; this.y = H - margin; }
+  }
+
+  draw() {
+    const bobY = Math.sin(this.wobblePhase) * 1.5;
+    drawFish(ctx, this.x, this.y + bobY, this.radius, this.angle, this.color, false);
+  }
+}
+
+// ============ 绘制鱼 ============
+function drawFish(ctx, x, y, radius, angle, color, isPlayer) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const r = radius;
+  const bodyLen = r * 2.2;
+  const tailLen = r * 0.9;
+  const finH = r * 0.7;
+
+  // 尾巴
+  ctx.beginPath();
+  ctx.moveTo(-bodyLen * 0.7, 0);
+  ctx.quadraticCurveTo(-bodyLen * 0.7 - tailLen * 0.5, -r * 0.7, -bodyLen * 0.7 - tailLen, -r * 0.5);
+  ctx.quadraticCurveTo(-bodyLen * 0.7 - tailLen * 0.6, 0, -bodyLen * 0.7 - tailLen, r * 0.5);
+  ctx.quadraticCurveTo(-bodyLen * 0.7 - tailLen * 0.5, r * 0.7, -bodyLen * 0.7, 0);
+  ctx.closePath();
+  ctx.fillStyle = isPlayer ? darken(color.fin, 0.15) : color.fin;
+  ctx.fill();
+
+  // 身体 - 椭圆
+  ctx.beginPath();
+  ctx.ellipse(0, 0, bodyLen * 0.5, r, 0, 0, Math.PI * 2);
+  ctx.fillStyle = isPlayer ? color.body : color.body;
+  ctx.fill();
+
+  // 身体光泽
+  ctx.beginPath();
+  ctx.ellipse(2, -r * 0.25, bodyLen * 0.35, r * 0.4, -0.1, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fill();
+
+  // 背鳍
+  ctx.beginPath();
+  ctx.moveTo(bodyLen * 0.05, -r * 0.85);
+  ctx.quadraticCurveTo(bodyLen * 0.1, -r * 1.2, bodyLen * 0.3, -r * 0.9);
+  ctx.quadraticCurveTo(bodyLen * 0.25, -r * 0.7, bodyLen * 0.05, -r * 0.85);
+  ctx.closePath();
+  ctx.fillStyle = isPlayer ? darken(color.fin, 0.1) : color.fin;
+  ctx.fill();
+
+  // 腹鳍
+  ctx.beginPath();
+  ctx.moveTo(-bodyLen * 0.1, r * 0.6);
+  ctx.quadraticCurveTo(-bodyLen * 0.05, r * 0.95, bodyLen * 0.1, r * 0.65);
+  ctx.quadraticCurveTo(0, r * 0.5, -bodyLen * 0.1, r * 0.6);
+  ctx.closePath();
+  ctx.fillStyle = isPlayer ? darken(color.fin, 0.1) : color.fin;
+  ctx.fill();
+
+  // 眼睛
+  const eyeX = bodyLen * 0.25;
+  const eyeY = -r * 0.2;
+  const eyeR = r * 0.25;
+  ctx.beginPath();
+  ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  // 瞳孔
+  const pupilR = eyeR * 0.55;
+  ctx.beginPath();
+  ctx.arc(eyeX + eyeR * 0.2, eyeY - eyeR * 0.05, pupilR, 0, Math.PI * 2);
+  ctx.fillStyle = '#111';
+  ctx.fill();
+
+  // 瞳孔高光
+  ctx.beginPath();
+  ctx.arc(eyeX + eyeR * 0.35, eyeY - eyeR * 0.25, pupilR * 0.35, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fill();
+
+  // 嘴巴（玩家加个微笑）
+  if (isPlayer) {
+    ctx.beginPath();
+    ctx.arc(bodyLen * 0.42, r * 0.08, r * 0.12, 0, Math.PI * 0.7);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function darken(hex, amount) {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, (num >> 16) - amount * 255);
+  const g = Math.max(0, ((num >> 8) & 0xff) - amount * 255);
+  const b = Math.max(0, (num & 0xff) - amount * 255);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ============ 气泡 ============
+class Bubble {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = rand(0, W);
+    this.y = H + rand(10, 40);
+    this.r = rand(2, 8);
+    this.speed = rand(0.2, 0.8);
+    this.wobble = rand(0, Math.PI * 2);
+    this.wobbleAmp = rand(0.2, 0.8);
+    this.opacity = rand(0.1, 0.35);
+  }
+  update() {
+    this.y -= this.speed;
+    this.wobble += 0.02;
+    this.x += Math.sin(this.wobble) * this.wobbleAmp;
+    if (this.y < -20) this.reset();
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,230,255,${this.opacity})`;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(this.x - this.r*0.3, this.y - this.r*0.3, this.r*0.3, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${this.opacity*0.5})`;
+    ctx.fill();
+  }
+}
+
+// ============ 粒子特效 ============
+class Particle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    const angle = rand(0, Math.PI * 2);
+    const spd = rand(1, 4);
+    this.vx = Math.cos(angle) * spd;
+    this.vy = Math.sin(angle) * spd;
+    this.life = 1;
+    this.decay = rand(0.015, 0.03);
+    this.r = rand(2, 5);
+    this.color = color;
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vx *= 0.96;
+    this.vy *= 0.96;
+    this.life -= this.decay;
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r * this.life, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.globalAlpha = this.life;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ============ 吃掉特效 ============
+class EatEffect {
+  constructor(x, y, size) {
+    this.x = x;
+    this.y = y;
+    this.size = size;
+    this.life = 1;
+    this.maxR = size * 3;
+  }
+  update() {
+    this.life -= 0.03;
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.maxR * (1 - this.life), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,215,0,${this.life * 0.6})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.maxR * (0.5 - this.life * 0.3), 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,215,0,${this.life * 0.2})`;
+    ctx.fill();
+  }
+}
+
+// ============ 背景 ============
+function drawBackground() {
+  // 深海渐变
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0a1628');
+  grad.addColorStop(0.3, '#0f2040');
+  grad.addColorStop(0.6, '#0d1a35');
+  grad.addColorStop(1, '#060e1a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 海底
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 20) {
+    const y = H - 20 - Math.sin(x * 0.02 + frameCount * 0.001) * 12
+               - Math.sin(x * 0.05 + frameCount * 0.002) * 6;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  ctx.fillStyle = '#0d1f2e';
+  ctx.fill();
+
+  // 海底沙石纹理
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  for (let i = 0; i < 50; i++) {
+    const sx = (i * 137.5 + frameCount * 0.01) % W;
+    const sy = H - 10 - Math.sin(sx * 0.03) * 15;
+    ctx.beginPath();
+    ctx.arc(sx, sy, rand(1, 3), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 海草
+  const grassColors = ['#0a2e1a', '#0d3820', '#0b2a18'];
+  for (let i = 0; i < 20; i++) {
+    const gx = (i * 47 + 13) % W;
+    const gy = H - 20 - Math.sin(gx * 0.02) * 15;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    const sway = Math.sin(frameCount * 0.008 + i * 1.5) * 8;
+    const h = rand(20, 50);
+    ctx.quadraticCurveTo(gx + sway, gy - h * 0.5, gx + sway * 0.5, gy - h);
+    ctx.strokeStyle = grassColors[i % 3];
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  // 光线
+  for (let i = 0; i < 3; i++) {
+    const lx = (i * 300 + 120) % W;
+    ctx.beginPath();
+    ctx.moveTo(lx, 0);
+    const sway2 = Math.sin(frameCount * 0.003 + i * 2) * 30;
+    ctx.lineTo(lx + sway2 + 40, H);
+    ctx.lineTo(lx + sway2 - 40, H);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(100,180,255,${0.02 + Math.sin(frameCount*0.005 + i)*0.01})`;
+    ctx.fill();
+  }
+}
+
+// ============ 生成鱼 ============
+function spawnFishes() {
+  // 根据分数生成更多鱼
+  const count = 15 + Math.floor(score / 20);
+  const maxCount = Math.min(count, 45);
+
+  while (fishes.length < maxCount) {
+    let size;
+    const roll = Math.random();
+    if (score < 30) {
+      // 前期: 多小鱼
+      size = roll < 0.4 ? rand(0.4, 0.7) : roll < 0.7 ? rand(0.7, 1.0) : roll < 0.9 ? rand(1.0, 1.5) : rand(1.5, 2.5);
+    } else {
+      size = roll < 0.25 ? rand(0.4, 0.7) : roll < 0.5 ? rand(0.7, 1.0) : roll < 0.7 ? rand(1.0, 1.5) : roll < 0.85 ? rand(1.5, 2.2) : rand(2.2, 3.2);
+    }
+    // 避免出生在玩家脸上
+    const fish = new Fish(size);
+    if (player && dist(fish, player) < 100) continue;
+    fishes.push(fish);
+  }
+
+  // 清理太多鱼
+  while (fishes.length > maxCount + 10) {
+    fishes.pop();
+  }
+}
+
+// ============ 碰撞检测 ============
+function checkCollisions() {
+  if (!player.alive) return;
+
+  const toRemove = [];
+  const playerR = player.radius;
+
+  for (let i = fishes.length - 1; i >= 0; i--) {
+    const fish = fishes[i];
+    const d = dist(fish, player);
+
+    if (d < playerR + fish.radius - 2) {
+      if (fish.sizeMult < player.scale * 0.9) {
+        // 玩家吃掉鱼
+        const gain = 0.04 + (1 - fish.sizeMult / player.scale) * 0.02;
+        player.grow(gain);
+        const pts = Math.ceil(fish.sizeMult * 10);
+        score += pts;
+
+        // 特效
+        for (let j = 0; j < 12; j++) {
+          particles.push(new Particle(fish.x, fish.y, '#ffd700'));
+        }
+        eatenEffects.push(new EatEffect(fish.x, fish.y, fish.radius));
+
+        toRemove.push(i);
+      } else if (fish.sizeMult > player.scale * 1.1) {
+        // 大鱼吃掉玩家
+        player.alive = false;
+        gameOver = true;
+        for (let j = 0; j < 30; j++) {
+          particles.push(new Particle(player.x, player.y, '#ff4444'));
+        }
+        showGameOver();
+        return;
+      }
+    }
+  }
+
+  for (const idx of toRemove) {
+    fishes.splice(idx, 1);
+  }
+}
+
+// ============ UI ============
+function updateUI() {
+  document.getElementById('scoreValue').textContent = score;
+  document.getElementById('sizeLevel').textContent = player.scale.toFixed(1);
+}
+
+function showGameOver() {
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('game-over').style.display = 'block';
+}
+
+// ============ 主循环 ============
+function update() {
+  if (!gameRunning) return;
+  frameCount++;
+
+  player.update();
+
+  // 更新鱼
+  for (const fish of fishes) {
+    fish.update(player);
+  }
+
+  // 检测碰撞
+  if (!gameOver) {
+    checkCollisions();
+  }
+
+  // 生成新鱼
+  if (frameCount % 30 === 0) {
+    spawnFishes();
+  }
+
+  // 更新气泡
+  for (const b of bubbles) b.update();
+
+  // 更新粒子
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].update();
+    if (particles[i].life <= 0) particles.splice(i, 1);
+  }
+
+  // 更新吃掉特效
+  for (let i = eatenEffects.length - 1; i >= 0; i--) {
+    eatenEffects[i].update();
+    if (eatenEffects[i].life <= 0) eatenEffects.splice(i, 1);
+  }
+
+  updateUI();
+}
+
+function draw() {
+  update();
+
+  ctx.clearRect(0, 0, W, H);
+
+  drawBackground();
+
+  // 气泡
+  for (const b of bubbles) b.draw();
+
+  // 粒子
+  for (const p of particles) p.draw();
+
+  // 吃掉特效
+  for (const e of eatenEffects) e.draw();
+
+  // 鱼
+  if (player && !gameOver) {
+    // 画出比玩家大的鱼（在后面，更远）
+    for (const fish of fishes) {
+      if (fish.sizeMult > player.scale) fish.draw();
+    }
+    // 玩家
+    player.draw();
+    // 画出比玩家小的鱼（在前面，更近）
+    for (const fish of fishes) {
+      if (fish.sizeMult <= player.scale) fish.draw();
+    }
+  } else {
+    for (const fish of fishes) fish.draw();
+  }
+
+  // 游戏结束时显示玩家残骸
+  if (gameOver && player) {
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    player.draw();
+    ctx.restore();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+// ============ 游戏控制 ============
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-over').style.display = 'none';
+  initGame();
+  gameRunning = true;
+}
+
+function restartGame() {
+  document.getElementById('game-over').style.display = 'none';
+  initGame();
+  gameRunning = true;
+}
+
+function initGame() {
+  score = 0;
+  gameOver = false;
+  frameCount = 0;
+  player = new Player();
+  fishes = [];
+  particles = [];
+  eatenEffects = [];
+  mouseX = W/2;
+  mouseY = H/2;
+
+  // 初始鱼
+  for (let i = 0; i < 18; i++) {
+    let size;
+    const roll = Math.random();
+    size = roll < 0.4 ? rand(0.4, 0.7) : roll < 0.7 ? rand(0.7, 1.0) : roll < 0.9 ? rand(1.0, 1.5) : rand(1.5, 2.5);
+    const fish = new Fish(size);
+    if (player && dist(fish, player) < 120) continue;
+    fishes.push(fish);
+  }
+
+  updateUI();
+}
+
+// ============ 鼠标/触摸事件 ============
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  mouseX = (e.clientX - rect.left) * scaleX;
+  mouseY = (e.clientY - rect.top) * scaleY;
+  mouseX = clamp(mouseX, 5, W - 5);
+  mouseY = clamp(mouseY, 5, H - 5);
+});
+
+canvas.addEventListener('mouseleave', () => {
+  // 不动
+});
+
+// 触摸支持
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  mouseX = (touch.clientX - rect.left) * scaleX;
+  mouseY = (touch.clientY - rect.top) * scaleY;
+  mouseX = clamp(mouseX, 5, W - 5);
+  mouseY = clamp(mouseY, 5, H - 5);
+}, { passive: false });
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  mouseX = (touch.clientX - rect.left) * scaleX;
+  mouseY = (touch.clientY - rect.top) * scaleY;
+  mouseX = clamp(mouseX, 5, W - 5);
+  mouseY = clamp(mouseY, 5, H - 5);
+}, { passive: false });
+
+// ============ 初始化 ============
+// 气泡
+for (let i = 0; i < 20; i++) {
+  const b = new Bubble();
+  b.y = rand(0, H);
+  bubbles.push(b);
+}
+
+// 创建背景鱼（不动）
+initGame();
+gameRunning = false; // 由start按钮控制
+draw();
+</script>
+</body>
+</html>
