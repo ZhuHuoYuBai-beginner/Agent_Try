@@ -17,13 +17,16 @@
   }
   .game-wrapper {
     position: relative;
-    border-radius: 16px;
-    box-shadow: 0 0 60px rgba(0,150,255,0.3), 0 0 120px rgba(0,100,200,0.15);
-    border: 2px solid rgba(100,200,255,0.2);
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
   }
   canvas {
     display: block;
-    border-radius: 14px;
+    width: 100vw;
+    height: 100vh;
     cursor: none;
     background: #0a1628;
   }
@@ -134,7 +137,6 @@
     opacity: 0.4;
   }
   @media (max-width: 600px) {
-    canvas { width: 100vw; height: 100vw; }
     #start-screen h1 { font-size: 36px; }
     #score { font-size: 18px; top: 14px; left: 16px; }
     #size-info { font-size: 12px; top: 14px; right: 16px; }
@@ -144,7 +146,7 @@
 <body>
 
 <div class="game-wrapper">
-  <canvas id="gameCanvas" width="900" height="600"></canvas>
+  <canvas id="gameCanvas"></canvas>
   <div id="ui-overlay">
     <div id="score">🐟 得分: <span id="scoreValue">0</span></div>
     <div id="size-info">体型: <span id="sizeLevel">1</span></div>
@@ -167,8 +169,30 @@
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const W = canvas.width;
-const H = canvas.height;
+let W = 0, H = 0;
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  W = canvas.width;
+  H = canvas.height;
+  // 重置气泡范围
+  for (const b of bubbles) {
+    if (b.y > H) b.y = rand(H * 0.5, H);
+  }
+  // 更新玩家位置边界
+  if (player) {
+    player.x = clamp(player.x, player.radius, W - player.radius);
+    player.y = clamp(player.y, player.radius, H - player.radius);
+  }
+}
+
+window.addEventListener('resize', resizeCanvas);
 
 // ============ 游戏状态 ============
 let gameRunning = false;
@@ -845,7 +869,8 @@ for (let i = 0; i < 20; i++) {
   bubbles.push(b);
 }
 
-// 创建背景鱼（不动）
+// 自适应尺寸 + 初始化
+resizeCanvas();
 initGame();
 gameRunning = false; // 由start按钮控制
 draw();
